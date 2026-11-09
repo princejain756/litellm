@@ -195,6 +195,58 @@ async def test_runtime_400_without_an_edit_still_reports_the_mantle_failure() ->
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("runtime_status", (400, 404))
+async def test_runtime_rejection_stands_when_mantle_host_is_unreachable_in_region(runtime_status: int) -> None:
+    def transport(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "bedrock-runtime.eu-west-3.amazonaws.com":
+            return httpx.Response(runtime_status, json=dict(UNSUPPORTED), request=request)
+        raise httpx.ConnectError("[Errno 8] nodename nor servname provided, or not known", request=request)
+
+    counter: Final = BedrockTokenCounter(client=AsyncHTTPHandler(transport=httpx.MockTransport(transport)))
+    result: Final = await counter.count_tokens(
+        model_to_use="bedrock/converse/eu.anthropic.claude-sonnet-5-5",
+        messages=MESSAGES,
+        contents=None,
+        deployment={
+            "litellm_params": {
+                **DEPLOYMENT["litellm_params"],
+                "aws_region_name": "eu-west-3",
+            }
+        },
+        request_model="claude-sonnet-5-5",
+    )
+
+    assert result is not None
+    assert result.error is True
+    assert result.status_code == runtime_status
+    assert result.tokenizer_type == "bedrock_api"
+    assert "doesn't support counting tokens" in (result.error_message or "")
+
+
+@pytest.mark.asyncio
+async def test_runtime_rejection_stands_when_mantle_returns_5xx() -> None:
+    bedrock: Final = _Bedrock(
+        runtime=(400, UNSUPPORTED),
+        mantle=(503, {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}),
+    )
+
+    result: Final = await _counter(bedrock).count_tokens(
+        model_to_use="global.anthropic.claude-opus-4-8",
+        messages=MESSAGES,
+        contents=None,
+        deployment=DEPLOYMENT,
+        request_model="claude-opus-4-8",
+    )
+
+    assert result is not None
+    assert result.error is True
+    assert result.status_code == 400
+    assert result.tokenizer_type == "bedrock_api"
+    assert "doesn't support counting tokens" in (result.error_message or "")
+    assert bedrock.posted_hosts() == (RUNTIME_HOST, MANTLE_HOST)
+
+
+@pytest.mark.asyncio
 async def test_plain_text_history_with_an_edit_is_counted_through_invoke_carrying_the_edit() -> None:
     bedrock: Final = _Bedrock(runtime=(200, {"inputTokens": 57}), mantle=(200, {"input_tokens": 1}))
     spec: Final[dict[str, JsonValue]] = {"edits": [{"type": "clear_tool_uses_20250919"}]}
