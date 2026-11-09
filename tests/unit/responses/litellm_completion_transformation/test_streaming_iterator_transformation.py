@@ -2391,3 +2391,33 @@ async def test_streamed_refusal_deltas_become_one_refusal_part_of_the_message(sy
     assert [event.refusal for event in refusal_done] == [expected_content[0]["refusal"]]
     assert [item.model_dump()["content"] for item in message_done] == [expected_content]
     assert [item.model_dump()["content"] for item in finished.response.output] == [expected_content]
+
+
+@REASONING_THEN_TEXT_STREAMS
+@pytest.mark.parametrize("sync_mode", [True, False])
+@pytest.mark.asyncio
+async def test_reasoning_stream_emits_empty_summary_on_added_and_preserves_summary_in_completed_output(
+    stream_chunks: StreamChunks, sync_mode: bool
+) -> None:
+    iterator: Final = _build_iterator(stream_chunks())
+
+    events: Final = await _collect_events(iterator, sync_mode)
+
+    reasoning_added: Final = next(
+        event.model_dump(exclude_none=True)
+        for event in events
+        if event.type == ResponsesAPIStreamEvents.OUTPUT_ITEM_ADDED and event.item.type == "reasoning"
+    )
+    reasoning_done: Final = next(
+        event.model_dump(exclude_none=True)
+        for event in events
+        if event.type == ResponsesAPIStreamEvents.OUTPUT_ITEM_DONE and event.item.type == "reasoning"
+    )
+    completed_output: Final = events[-1].model_dump(exclude_none=True)["response"]["output"]
+    completed_reasoning: Final = next(item for item in completed_output if item["type"] == "reasoning")
+
+    assert reasoning_added["item"]["summary"] == []
+    assert reasoning_done["item"]["summary"] == [{"type": "summary_text", "text": "let me think"}]
+    assert completed_reasoning["id"] == reasoning_added["item"]["id"] == reasoning_done["item"]["id"]
+    assert completed_reasoning["summary"] == reasoning_done["item"]["summary"]
+

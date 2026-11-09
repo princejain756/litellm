@@ -1226,12 +1226,10 @@ class LiteLLMCompletionStreamingIterator(ResponsesAPIStreamingIterator):
                     type=ResponsesAPIStreamEvents.OUTPUT_ITEM_ADDED,
                     output_index=self._reasoning_index(),
                     item=BaseLiteLLMOpenAIResponseObject(
-                        **{
-                            "id": self._cached_reasoning_item_id,
-                            "type": "reasoning",
-                            "status": "in_progress",
-                            "summary": None,
-                        }
+                        id=self._cached_reasoning_item_id,
+                        type="reasoning",
+                        status="in_progress",
+                        summary=[],
                     ),
                 )
             )

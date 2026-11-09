@@ -3654,6 +3654,14 @@ class LiteLLMCompletionResponsesConfig:
                                 for text in (reasoning_content,)
                                 if text
                             ],
+                            summary=[
+                                {
+                                    "type": "summary_text",
+                                    "text": text,
+                                }
+                                for text in (reasoning_content,)
+                                if text
+                            ],
                             encrypted_content=encrypted_content,
                         )
                     ]
