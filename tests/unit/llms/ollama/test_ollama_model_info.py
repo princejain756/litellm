@@ -575,6 +575,63 @@ class TestOllamaGetModelInfo:
         assert model_info["key"] == "ollama/llama2"
         assert model_info["litellm_provider"] == "ollama"
 
+    @pytest.mark.parametrize(
+        "api_base",
+        [
+            "http://my-remote-server:11434/v1",
+            "http://my-remote-server:11434/v1/",
+            "http://my-remote-server:11434/v1/systemone",
+            "http://my-remote-server:11434/v1/decisions",
+        ],
+    )
+    def test_get_server_api_base_strips_v1_and_decisions_suffixes(self, api_base: str) -> None:
+        assert OllamaModelInfo.get_server_api_base(api_base) == "http://my-remote-server:11434"
+
+    def test_decisions_and_cost_forward_explicit_api_base_to_ollama_show(self, monkeypatch) -> None:
+        from litellm.decisions.call import SystemOneRequestFields, prepare_call
+        from litellm.types.decisions import DecisionsResponse, DecisionsUsage
+
+        captured_urls: list[str] = []
+
+        def mock_post(url, json, headers=None):
+            captured_urls.append(url)
+            return DummyResponse({"template": "", "model_info": {"context_length": 8192}}, status_code=200)
+
+        litellm.get_model_info.cache_clear()
+        monkeypatch.setenv("OLLAMA_API_BASE", "http://unused-env-host:11434")
+        monkeypatch.setattr("litellm.module_level_client.post", mock_post)
+        try:
+            call = prepare_call(
+                model="ollama/my-custom-model",
+                fields=SystemOneRequestFields(
+                    state="Customer asked for a refund.",
+                    questions={"eligible": {"type": "noul", "instructions": "Eligible?"}},
+                ),
+                safety_identifier=None,
+                api_key="explicit-key",
+                api_base="http://real-host:11434/v1/",
+                timeout=None,
+                custom_llm_provider=None,
+                extra_headers=None,
+                kwargs={},
+            )
+            cost = litellm.completion_cost(
+                completion_response=DecisionsResponse(
+                    id="dec_1",
+                    model="my-custom-model",
+                    answers={},
+                    usage=DecisionsUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+                ),
+                model="ollama/my-custom-model",
+                call_type="systemone",
+                optional_params={"api_base": call.api_base},
+            )
+        finally:
+            litellm.get_model_info.cache_clear()
+
+        assert cost == 0.0
+        assert set(captured_urls) == {"http://real-host:11434/api/show"}
+
 
 class TestOllamaAuthHeaders:
     """Tests for Ollama authentication header handling in completion calls."""

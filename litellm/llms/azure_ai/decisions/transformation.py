@@ -27,13 +27,17 @@ class AzureAIDecisionsConfig(BaseDecisionsConfig):
     api_key_required = False
 
     def get_input_limits(
-        self, model: str, custom_llm_provider: str, headers: Mapping[str, str]
+        self,
+        model: str,
+        custom_llm_provider: str,
+        headers: Mapping[str, str],
+        api_base: str | None = None,
     ) -> DecisionsInputLimits:
-        limits: Final = super().get_input_limits(model, custom_llm_provider, headers)
+        limits: Final = super().get_input_limits(model, custom_llm_provider, headers, api_base=api_base)
         return (
             limits
             if limits.max_request_tokens is not None
-            else super().get_input_limits("Microsoft-Decision-1", custom_llm_provider, headers)
+            else super().get_input_limits("Microsoft-Decision-1", custom_llm_provider, headers, api_base=api_base)
         )
 
     def missing_api_base_message(self, custom_llm_provider: str) -> str:

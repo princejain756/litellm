@@ -147,10 +147,26 @@ class OllamaModelInfo(BaseLLMModelInfo):
             "/api/embeddings",
             "/api/show",
             "/api/tags",
+            "/v1/systemone",
+            "/v1/decisions",
+            "/v1",
         ):
             if api_base.endswith(suffix):
                 return api_base[: -len(suffix)]
         return api_base
+
+    @classmethod
+    def _resolve_request_api_key(
+        cls,
+        api_key: str | None,
+        passed_api_base: str | None,
+        server_api_base: str,
+    ) -> str | None:
+        if api_key is not None:
+            return api_key or None
+        if passed_api_base is None or server_api_base == cls.get_server_api_base(None):
+            return cls.get_api_key(None)
+        return None
 
     def get_models(self, api_key=None, api_base: str | None = None) -> list[str]:
         """
@@ -159,7 +175,7 @@ class OllamaModelInfo(BaseLLMModelInfo):
 
         passed_api_base: Final = api_base
         base: Final = self.get_server_api_base(api_base)
-        api_key = self.get_api_key(api_key) if passed_api_base is None or api_key else None
+        api_key = self._resolve_request_api_key(api_key, passed_api_base, base)
         headers: Final = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
         names: Final[set[str]] = set()
@@ -240,7 +256,7 @@ class OllamaModelInfo(BaseLLMModelInfo):
         model = self._strip_ollama_model_prefix(model)
         passed_api_base: Final = api_base
         api_base = self.get_server_api_base(api_base)
-        api_key = self.get_api_key(api_key) if passed_api_base is None or api_key else None
+        api_key = self._resolve_request_api_key(api_key, passed_api_base, api_base)
         headers: Final = {"Authorization": f"Bearer {api_key}"} if api_key else {}
 
         try:

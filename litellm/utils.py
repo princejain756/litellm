@@ -7025,9 +7025,11 @@ _cached_get_model_info_helper = cached_get_model_info_helper
 
 
 @VersionCached
-def cached_cost_map_key(model: str, custom_llm_provider: str | None) -> str | None:
+def cached_cost_map_key(model: str, custom_llm_provider: str | None, api_base: str | None = None) -> str | None:
     try:
-        return cached_get_model_info_helper(model=model, custom_llm_provider=custom_llm_provider)["key"]
+        return cached_get_model_info_helper(model=model, custom_llm_provider=custom_llm_provider, api_base=api_base)[
+            "key"
+        ]
     except Exception:
         return None
 

@@ -86,7 +86,11 @@ class TypeSafeDecisionsConfig(BaseDecisionsConfig):
         return "https://api.typesafe.ai"
 
     def get_input_limits(
-        self, model: str, custom_llm_provider: str, headers: Mapping[str, str]
+        self,
+        model: str,
+        custom_llm_provider: str,
+        headers: Mapping[str, str],
+        api_base: str | None = None,
     ) -> DecisionsInputLimits:
         long_context_values: Final = tuple(
             value.strip().lower() for name, value in headers.items() if name.lower() == _LONG_CONTEXT_HEADER
@@ -106,10 +110,15 @@ class TypeSafeDecisionsConfig(BaseDecisionsConfig):
         )
 
     def supports_box_questions(
-        self, model: str, custom_llm_provider: str, headers: Mapping[str, str], deployment_flag: bool | None
+        self,
+        model: str,
+        custom_llm_provider: str,
+        headers: Mapping[str, str],
+        deployment_flag: bool | None,
+        api_base: str | None = None,
     ) -> bool:
         return self.supports_assets(headers) and super().supports_box_questions(
-            model, custom_llm_provider, headers, deployment_flag
+            model, custom_llm_provider, headers, deployment_flag, api_base=api_base
         )
 
     def transform_decisions_request(

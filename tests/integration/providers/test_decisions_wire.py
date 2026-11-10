@@ -268,12 +268,12 @@ def _sdk_inference_call(
     handle: ScenarioHandle,
     provider: _Provider,
     *,
-    metadata_authorization: str | None = None,
+    metadata_authorization: str = "",
 ) -> dict[str, JsonValue]:
     observed: Final = _upstream_calls(gateway, handle)
     inference_path: Final = f"/{handle.scenario_id}/v1/systemone"
     (call,) = tuple(request for request in observed if request["path"] == inference_path)
-    environment_metadata: Final = {
+    metadata_call: Final = {
         "path": f"/{handle.scenario_id}/api/show",
         "authorization": metadata_authorization,
         "body": {"name": provider.body_model},
@@ -281,22 +281,9 @@ def _sdk_inference_call(
         "api_key": "",
     }
     metadata_calls: Final = tuple(
-        request
-        for request in observed
-        if request["path"] != inference_path and (metadata_authorization is None or request != environment_metadata)
+        request for request in observed if request["path"] != inference_path and request != metadata_call
     )
-    assert metadata_calls in (
-        (),
-        (
-            {
-                "path": f"{inference_path}/api/show",
-                "authorization": "",
-                "body": {"name": provider.body_model},
-                "method": "POST",
-                "api_key": "",
-            },
-        ),
-    ), observed
+    assert metadata_calls == (), observed
     return call
 
 
@@ -575,23 +562,14 @@ def test_ollama_decisions_sdk_respects_environment_and_explicit_auth(
         )
         assert response.model_dump(mode="json") == _answer_body(provider)
         call: Final = _sdk_inference_call(
-            gateway, handle, provider, metadata_authorization=authorization if environment_base else None
+            gateway, handle, provider, metadata_authorization=authorization if environment_base else ""
         )
         assert (call["path"], call["authorization"], call["body"]) == (
             f"/{handle.scenario_id}/v1/systemone",
             authorization,
             {"model": provider.body_model, "state": _STATE, "questions": _QUESTIONS},
         )
-        unused_calls: Final = _upstream_calls(gateway, unused)
-        assert tuple(
-            request
-            for request in unused_calls
-            if not (
-                request["method"] == "POST"
-                and request["path"] == f"/{unused.scenario_id}/api/show"
-                and request["body"] == {"name": provider.body_model}
-            )
-        ) == (), unused_calls
+        assert _upstream_calls(gateway, unused) == []
 
 
 def test_test_connection_evaluation_mode_uses_typesafe_decisions_path(gateway: Gateway) -> None:
